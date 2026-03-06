@@ -218,13 +218,8 @@ body {
   color: var(--accent);
 }
 
-/* Sidebar Actions */
-.sidebar-actions {
-  position: sticky;
-  bottom: 0;
-  padding: 16px 0 0;
-  background: linear-gradient(transparent, var(--bg-sidebar) 30%);
-}
+
+
 
 .btn-primary {
   width: 100%;
@@ -907,6 +902,162 @@ body {
   .invoice {
     padding: 28px 24px;
   }
+}
+
+/* ===== Login Screen ===== */
+.login-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background: var(--bg-app);
+}
+
+.login-card {
+  width: 380px;
+  background: var(--bg-sidebar);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 40px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, .08);
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.login-header svg {
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.login-header h1 {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -.5px;
+  margin-bottom: 4px;
+}
+
+.login-subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.login-form .form-group {
+  margin-bottom: 16px;
+}
+
+.login-error {
+  color: var(--danger);
+  font-size: 12px;
+  min-height: 18px;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+/* ===== Logout Button ===== */
+.btn-logout {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 2px 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+  transition: color var(--transition);
+}
+
+.btn-logout:hover {
+  color: var(--danger);
+}
+
+/* ===== Secondary Button ===== */
+.sidebar-actions {
+  position: sticky;
+  bottom: 0;
+  padding: 16px 0 0;
+  background: linear-gradient(transparent, var(--bg-sidebar) 30%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.btn-secondary {
+  width: 100%;
+  padding: 10px 20px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all var(--transition);
+  text-transform: uppercase;
+  letter-spacing: .8px;
+}
+
+.btn-secondary:hover {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+}
+
+/* ===== Toast ===== */
+.toast {
+  position: fixed;
+  bottom: -60px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent);
+  color: #f5f0ea;
+  padding: 10px 24px;
+  border-radius: var(--radius);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .3px;
+  transition: bottom .3s ease;
+  z-index: 9999;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .2);
+}
+
+.toast.show {
+  bottom: 32px;
+}
+
+/* ===== Invoice Status Colors ===== */
+.cal-invoice.status-processing .cal-invoice-status {
+  background: #3498db;
+}
+
+.cal-invoice.status-pending .cal-invoice-status {
+  background: #f39c12;
+}
+
+.cal-invoice.status-done .cal-invoice-status {
+  background: var(--success);
+}
+
+.cal-invoice.status-error .cal-invoice-status {
+  background: var(--danger);
+}
+
+.cal-invoice.status-done .cal-invoice-amount {
+  color: var(--success);
+}
+
+.cal-invoice.status-error .cal-invoice-amount {
+  color: var(--danger);
+}
+
+.cal-invoice.status-processing .cal-invoice-amount {
+  color: #3498db;
 }
 
 /* ===== Tab Navigation ===== */

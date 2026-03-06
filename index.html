@@ -4,19 +4,49 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Invoice Constructor — Artem Sokolov</title>
-  <meta name="description" content="Personal invoice generator for Artem Sokolov">
+  <title>Finance Center — Artem Sokolov</title>
+  <meta name="description" content="Personal finance center & invoice builder">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
     rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
-
-
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
 </head>
 
 <body>
-  <div class="app">
+  <!-- Login Screen -->
+  <div class="login-screen" id="loginScreen">
+    <div class="login-card">
+      <div class="login-header">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="16" y1="13" x2="8" y2="13" />
+          <line x1="16" y1="17" x2="8" y2="17" />
+        </svg>
+        <h1>Finance Center</h1>
+        <p class="login-subtitle">Sign in to continue</p>
+      </div>
+      <form class="login-form" onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label for="loginEmail">Email</label>
+          <input type="email" id="loginEmail" required placeholder="your@email.com">
+        </div>
+        <div class="form-group">
+          <label for="loginPassword">Password</label>
+          <input type="password" id="loginPassword" required placeholder="••••••••">
+        </div>
+        <div class="login-error" id="loginError"></div>
+        <button type="submit" class="btn-primary" id="loginBtn">Sign In</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- App (hidden until auth) -->
+  <div class="app" id="appContainer" style="display:none">
     <!-- Sidebar: Form -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
@@ -27,8 +57,17 @@
             <line x1="16" y1="13" x2="8" y2="13" />
             <line x1="16" y1="17" x2="8" y2="17" />
             <polyline points="10 9 9 9 8 9" />
-          </svg>Invoice Builder</h1>
-        <p class="subtitle">Artem Sokolov</p>
+          </svg>Finance Center</h1>
+        <p class="subtitle">Artem Sokolov
+          <button class="btn-logout" onclick="handleLogout()" title="Sign out">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+          </button>
+        </p>
         <div class="tab-nav">
           <button class="tab-btn active" data-tab="builder" onclick="switchTab('builder')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -36,7 +75,7 @@
               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
             </svg>
-            Builder
+            New
           </button>
           <button class="tab-btn" data-tab="calendar" onclick="switchTab('calendar')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -136,7 +175,12 @@
                   <input type="number" class="svc-amount" value="4500" step="0.01">
                 </div>
               </div>
-              <button class="btn-remove-service" onclick="removeService(this)" title="Remove service">✕</button>
+              <button class="btn-remove-service" onclick="removeService(this)" title="Remove service"><svg width="12"
+                  height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg></button>
             </div>
           </div>
           <button class="btn-add" onclick="addService()">+ Add Service</button>
@@ -144,7 +188,16 @@
 
         <!-- Actions -->
         <div class="sidebar-actions">
-          <button class="btn-primary" onclick="exportPDF()">
+          <button class="btn-primary" onclick="saveInvoice()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+              <polyline points="17 21 17 13 7 13 7 21" />
+              <polyline points="7 3 7 8 15 8" />
+            </svg>
+            Save
+          </button>
+          <button class="btn-secondary" onclick="exportPDF()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
               stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -158,7 +211,7 @@
     </aside>
 
     <!-- Main: Preview -->
-    <main class="preview-area">
+    <main class="preview-area" id="previewArea">
       <div class="preview-toolbar">
         <button class="btn-toggle-sidebar" onclick="toggleSidebar()"><svg width="16" height="16" viewBox="0 0 24 24"
             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -322,7 +375,7 @@
             <span class="summary-value" id="summaryTotal">0 €</span>
           </div>
           <div class="summary-card summary-paid">
-            <span class="summary-label">Paid</span>
+            <span class="summary-label">Done</span>
             <span class="summary-value" id="summaryPaid">0 €</span>
           </div>
           <div class="summary-card summary-pending">
@@ -362,6 +415,10 @@
             <label>Address</label>
             <textarea id="newCompanyAddress" rows="3"
               placeholder="167-169 Great Portland Street&#10;Fifth Floor&#10;London&#10;W1W 5PF"></textarea>
+          </div>
+          <div class="form-group">
+            <label>Registration Label</label>
+            <input type="text" id="newCompanyRegLabel" placeholder="e.g. VAT, Org.nr" value="COMPANY REGISTRATION NO">
           </div>
           <div class="form-group">
             <label>Registration NO</label>

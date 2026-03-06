@@ -1,8 +1,26 @@
+// ===== Supabase Client =====
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 // ===== Month Names =====
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
+
+// ===== Invoice Statuses =====
+const STATUSES = ['processing', 'pending', 'done', 'error'];
+const STATUS_LABELS = {
+  processing: 'Processing',
+  pending: 'Pending',
+  done: 'Done',
+  error: 'Error'
+};
+const STATUS_NEXT = {
+  processing: 'pending',
+  pending: 'done',
+  done: 'error',
+  error: 'processing'
+};
 
 // ===== Default Saved Companies =====
 const DEFAULT_COMPANIES = [
@@ -51,52 +69,131 @@ let savedCompanies = [...DEFAULT_COMPANIES];
 let invoiceHistory = [];
 let calendarYear = new Date().getFullYear();
 
-// ===== Init =====
-document.addEventListener('DOMContentLoaded', () => {
-  loadCompanies();
-  loadInvoiceHistory();
-  loadState();
+// ===== Auth =====
+async function checkAuth() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session) {
+    showApp();
+  } else {
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('appContainer').style.display = 'none';
+  }
+}
+
+async function handleLogin(event) {
+  event.preventDefault();
+  const email = document.getElementById('loginEmail').value;
+  const password = document.getElementById('loginPassword').value;
+  const errorEl = document.getElementById('loginError');
+  const btn = document.getElementById('loginBtn');
+
+  btn.disabled = true;
+  btn.textContent = 'Signing in...';
+  errorEl.textContent = '';
+
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+  if (error) {
+    errorEl.textContent = error.message;
+    btn.disabled = false;
+    btn.textContent = 'Sign In';
+  } else {
+    showApp();
+  }
+}
+
+async function handleLogout() {
+  await supabase.auth.signOut();
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('appContainer').style.display = 'none';
+}
+
+async function showApp() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appContainer').style.display = 'flex';
+  await loadCompanies();
+  await loadState();
+  await loadInvoiceHistory();
   bindInputs();
   rebuildCompanyDropdown();
   recalcDates();
   render();
-});
-
-// ===== State Persistence =====
-function saveState() {
-  localStorage.setItem('invoice_state', JSON.stringify(state));
 }
 
-function loadState() {
-  const saved = localStorage.getItem('invoice_state');
-  if (saved) {
-    try {
-      const parsed = JSON.parse(saved);
-      Object.assign(state, parsed);
-    } catch (e) { /* ignore */ }
+// ===== Init =====
+document.addEventListener('DOMContentLoaded', () => {
+  checkAuth();
+});
+
+// ===== State Persistence (Supabase) =====
+async function saveState() {
+  await supabase.from('app_state').upsert({ id: 1, state, updated_at: new Date().toISOString() });
+}
+
+async function loadState() {
+  const { data } = await supabase.from('app_state').select('state').eq('id', 1).single();
+  if (data && data.state) {
+    Object.assign(state, data.state);
   }
   // Restore form values
   document.getElementById('invoiceNumber').value = state.invoiceNumber;
-  document.getElementById('invoiceMonth').value = state.invoiceMonth;
   document.getElementById('invoiceYear').value = state.invoiceYear;
+  document.getElementById('invoiceMonth').value = state.invoiceMonth;
+  if (state.selectedCompanyId) {
+    document.getElementById('companySelect').value = state.selectedCompanyId;
+  }
   rebuildServicesForm();
 }
 
-// ===== Company Persistence =====
-function saveCompanies() {
-  localStorage.setItem('invoice_companies', JSON.stringify(savedCompanies));
+// ===== Company Persistence (Supabase) =====
+async function saveCompanies() {
+  // Upsert all companies
+  for (const c of savedCompanies) {
+    await supabase.from('companies').upsert({
+      id: c.id,
+      name: c.name,
+      address: c.address,
+      reg_no: c.regNo,
+      reg_label: c.regLabel || 'COMPANY REGISTRATION NO'
+    });
+  }
 }
 
-function loadCompanies() {
-  const saved = localStorage.getItem('invoice_companies');
-  if (saved) {
-    try {
-      const parsed = JSON.parse(saved);
-      // Merge: keep defaults + add any user-created companies
-      const defaultIds = DEFAULT_COMPANIES.map(c => c.id);
-      const userCompanies = parsed.filter(c => !defaultIds.includes(c.id));
-      savedCompanies = [...DEFAULT_COMPANIES, ...userCompanies];
-    } catch (e) { /* ignore */ }
+async function loadCompanies() {
+  const { data } = await supabase.from('companies').select('*').order('created_at');
+  if (data && data.length > 0) {
+    savedCompanies = data.map(c => ({
+      id: c.id,
+      name: c.name,
+      address: c.address,
+      regNo: c.reg_no,
+      regLabel: c.reg_label
+    }));
+  } else {
+    savedCompanies = [...DEFAULT_COMPANIES];
+    await saveCompanies();
+  }
+}
+
+// ===== Invoice History (Supabase) =====
+async function loadInvoiceHistory() {
+  const { data } = await supabase.from('invoices').select('*').order('created_at', { ascending: false });
+  if (data) {
+    invoiceHistory = data.map(inv => ({
+      id: inv.id,
+      number: inv.number,
+      month: inv.month,
+      year: inv.year,
+      clientName: inv.client_name,
+      companyId: inv.company_id,
+      amount: parseFloat(inv.amount),
+      status: inv.status || 'pending',
+      invoiceDate: inv.invoice_date,
+      dueDate: inv.due_date,
+      services: inv.services || [],
+      notes: inv.notes,
+      createdAt: inv.created_at
+    }));
   }
 }
 
@@ -129,45 +226,42 @@ function formatDateObj(d) {
 
 // ===== Input Binding =====
 function bindInputs() {
-  // Invoice number
-  document.getElementById('invoiceNumber').addEventListener('input', function () {
-    state.invoiceNumber = parseInt(this.value) || 0;
-    render();
+  document.getElementById('invoiceNumber').addEventListener('input', e => {
+    state.invoiceNumber = parseInt(e.target.value) || 1;
     saveState();
+    render();
   });
 
-  // Month select
-  document.getElementById('invoiceMonth').addEventListener('change', function () {
-    state.invoiceMonth = parseInt(this.value);
+  document.getElementById('invoiceYear').addEventListener('input', e => {
+    state.invoiceYear = parseInt(e.target.value) || 2025;
     recalcDates();
-    render();
     saveState();
+    render();
   });
 
-  // Year
-  document.getElementById('invoiceYear').addEventListener('input', function () {
-    state.invoiceYear = parseInt(this.value) || 2025;
+  document.getElementById('invoiceMonth').addEventListener('change', e => {
+    state.invoiceMonth = parseInt(e.target.value);
     recalcDates();
-    render();
     saveState();
+    render();
   });
 
   // Company select
-  document.getElementById('companySelect').addEventListener('change', function () {
-    const id = this.value;
-    state.selectedCompanyId = id;
-    if (id) {
-      const company = savedCompanies.find(c => c.id === id);
-      if (company) {
-        state.clientName = company.name;
-        state.clientAddress = company.address;
-        state.clientRegNo = company.regNo;
-        state.clientRegLabel = company.regLabel || 'COMPANY REGISTRATION NO';
-      }
+  document.getElementById('companySelect').addEventListener('change', e => {
+    const companyId = e.target.value;
+    state.selectedCompanyId = companyId;
+    const company = savedCompanies.find(c => c.id === companyId);
+    if (company) {
+      state.clientName = company.name;
+      state.clientAddress = company.address;
+      state.clientRegNo = company.regNo;
+      state.clientRegLabel = company.regLabel || 'COMPANY REGISTRATION NO';
     }
-    render();
     saveState();
+    render();
   });
+
+  bindServiceInputs();
 }
 
 function bindServiceInputs() {
@@ -180,40 +274,36 @@ function bindServiceInputs() {
     function recalcAmount() {
       const h = parseFloat(hours.value) || 0;
       const r = parseFloat(rate.value) || 0;
-      const calc = h * r;
-      if (h && r) {
+      if (h > 0 && r > 0) {
+        const calc = h * r;
         amount.value = calc;
         state.services[i].amount = calc;
+        amount.readOnly = true;
+      } else {
+        amount.readOnly = false;
       }
     }
 
-    [desc, hours, rate].forEach(el => {
-      el.addEventListener('input', () => {
-        state.services[i].desc = desc.value;
-        state.services[i].hours = hours.value;
-        state.services[i].rate = rate.value;
-        recalcAmount();
-        render();
-        saveState();
-      });
-    });
+    desc.addEventListener('input', () => { state.services[i].desc = desc.value; saveState(); render(); });
+    hours.addEventListener('input', () => { state.services[i].hours = hours.value; recalcAmount(); saveState(); render(); });
+    rate.addEventListener('input', () => { state.services[i].rate = rate.value; recalcAmount(); saveState(); render(); });
+    amount.addEventListener('input', () => { state.services[i].amount = parseFloat(amount.value) || 0; saveState(); render(); });
 
-    // Allow manual amount override only if hours/rate are empty
-    amount.addEventListener('input', () => {
-      state.services[i].amount = parseFloat(amount.value) || 0;
-      render();
-      saveState();
-    });
+    recalcAmount();
   });
 }
 
 // ===== Company Management =====
 function rebuildCompanyDropdown() {
   const select = document.getElementById('companySelect');
-  select.innerHTML = '<option value="">— Custom —</option>' +
-    savedCompanies.map(c =>
-      `<option value="${escapeAttr(c.id)}" ${c.id === state.selectedCompanyId ? 'selected' : ''}>${escapeHtml(c.name)}</option>`
-    ).join('');
+  select.innerHTML = '<option value="">— Custom —</option>';
+  savedCompanies.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = c.name;
+    select.appendChild(opt);
+  });
+  if (state.selectedCompanyId) select.value = state.selectedCompanyId;
 }
 
 function openCompanyManager() {
@@ -227,56 +317,56 @@ function closeCompanyManager() {
 
 function renderCompanyList() {
   const list = document.getElementById('companyList');
-  if (savedCompanies.length === 0) {
-    list.innerHTML = '<p class="empty-state">No saved companies yet</p>';
-    return;
-  }
   list.innerHTML = savedCompanies.map((c, i) => `
-    <div class="company-card">
-      <div class="company-card-info">
+    <div class="company-list-item">
+      <div>
         <strong>${escapeHtml(c.name)}</strong>
-        <span class="company-card-detail">${escapeHtml(c.address.replace(/\n/g, ', '))}</span>
-        ${c.regNo ? `<span class="company-card-detail">Reg: ${escapeHtml(c.regNo)}</span>` : ''}
+        <small>${escapeHtml(c.regLabel || 'REG')}: ${escapeHtml(c.regNo)}</small>
       </div>
-      <button class="btn-remove-company" onclick="removeCompany(${i})" title="Delete"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+      <button class="btn-remove" onclick="removeCompany(${i})" title="Remove">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
     </div>
   `).join('');
 }
 
-function addCompany() {
+async function addCompany() {
   const name = document.getElementById('newCompanyName').value.trim();
   const address = document.getElementById('newCompanyAddress').value.trim();
+  const regLabel = document.getElementById('newCompanyRegLabel')?.value.trim() || 'COMPANY REGISTRATION NO';
   const regNo = document.getElementById('newCompanyRegNo').value.trim();
+  if (!name) return;
 
-  if (!name) {
-    document.getElementById('newCompanyName').focus();
-    return;
-  }
-
-  const id = 'company_' + Date.now();
-  savedCompanies.push({ id, name, address, regNo });
-  saveCompanies();
+  const id = name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
+  const company = { id, name, address, regNo, regLabel };
+  savedCompanies.push(company);
+  await saveCompanies();
   rebuildCompanyDropdown();
   renderCompanyList();
 
-  // Clear form
   document.getElementById('newCompanyName').value = '';
   document.getElementById('newCompanyAddress').value = '';
   document.getElementById('newCompanyRegNo').value = '';
 }
 
-function removeCompany(index) {
-  const removed = savedCompanies[index];
-  savedCompanies.splice(index, 1);
-  saveCompanies();
+async function removeCompany(index) {
+  const removed = savedCompanies.splice(index, 1)[0];
+  if (removed) {
+    await supabase.from('companies').delete().eq('id', removed.id);
+  }
   rebuildCompanyDropdown();
   renderCompanyList();
-
-  // If the removed company was selected, reset to custom
   if (state.selectedCompanyId === removed.id) {
-    state.selectedCompanyId = '';
-    document.getElementById('companySelect').value = '';
+    state.selectedCompanyId = savedCompanies[0]?.id || '';
+    const company = savedCompanies[0];
+    if (company) {
+      state.clientName = company.name;
+      state.clientAddress = company.address;
+      state.clientRegNo = company.regNo;
+      state.clientRegLabel = company.regLabel;
+    }
     saveState();
+    render();
   }
 }
 
@@ -284,44 +374,45 @@ function removeCompany(index) {
 function addService() {
   state.services.push({ desc: '', hours: '', rate: '', amount: 0 });
   rebuildServicesForm();
-  render();
   saveState();
+  render();
 }
 
 function removeService(btn) {
   const item = btn.closest('.service-item');
-  const index = [...document.querySelectorAll('.service-item')].indexOf(item);
-  if (state.services.length > 1) {
-    state.services.splice(index, 1);
-    rebuildServicesForm();
-    render();
-    saveState();
-  }
+  const index = parseInt(item.dataset.index);
+  if (state.services.length <= 1) return;
+  state.services.splice(index, 1);
+  rebuildServicesForm();
+  saveState();
+  render();
 }
 
 function rebuildServicesForm() {
   const container = document.getElementById('servicesContainer');
-  container.innerHTML = state.services.map((s, i) => `
+  container.innerHTML = state.services.map((svc, i) => `
     <div class="service-item" data-index="${i}">
       <div class="form-group">
         <label>Description</label>
-        <input type="text" class="svc-desc" value="${escapeAttr(s.desc)}">
+        <input type="text" class="svc-desc" value="${escapeAttr(svc.desc)}">
       </div>
       <div class="form-grid form-grid-3">
         <div class="form-group">
           <label>Hours</label>
-          <input type="text" class="svc-hours" value="${escapeAttr(s.hours)}" placeholder="—">
+          <input type="text" class="svc-hours" value="${escapeAttr(svc.hours || '')}" placeholder="—">
         </div>
         <div class="form-group">
           <label>Rate</label>
-          <input type="text" class="svc-rate" value="${escapeAttr(s.rate)}" placeholder="—">
+          <input type="text" class="svc-rate" value="${escapeAttr(svc.rate || '')}" placeholder="—">
         </div>
         <div class="form-group">
           <label>Amount (€)</label>
-          <input type="number" class="svc-amount" value="${s.amount}" step="0.01">
+          <input type="number" class="svc-amount" value="${svc.amount}" step="0.01">
         </div>
       </div>
-      <button class="btn-remove-service" onclick="removeService(this)" title="Remove service"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button class="btn-remove-service" onclick="removeService(this)" title="Remove service">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
     </div>
   `).join('');
   bindServiceInputs();
@@ -329,50 +420,44 @@ function rebuildServicesForm() {
 
 // ===== Render Preview =====
 function render() {
-  // Invoice number
-  document.getElementById('invoiceNumberDisplay').textContent = '#' + state.invoiceNumber;
-
-  // Dates
+  document.getElementById('invoiceNumberDisplay').textContent = `#${state.invoiceNumber}`;
   document.getElementById('periodDisplay').textContent = state.invoicePeriod || MONTHS[state.invoiceMonth];
-  document.getElementById('dateDisplay').textContent = state.invoiceDate;
-  document.getElementById('dueDateDisplay').textContent = state.dueDate;
+  document.getElementById('dateDisplay').textContent = state.invoiceDate || '';
+  document.getElementById('dueDateDisplay').textContent = state.dueDate || '';
 
   // Client
   document.getElementById('clientNameDisplay').textContent = state.clientName;
-  document.getElementById('clientAddressDisplay').innerHTML = state.clientAddress.replace(/\n/g, '<br>');
-  const regLabel = state.clientRegLabel || 'COMPANY REGISTRATION NO';
-  document.getElementById('clientRegDisplay').innerHTML = state.clientRegNo
-    ? `<strong>${regLabel}: ${state.clientRegNo}</strong>`
-    : '';
+  document.getElementById('clientAddressDisplay').innerHTML = (state.clientAddress || '').replace(/\n/g, '<br>');
+  document.getElementById('clientRegDisplay').innerHTML =
+    `<strong>${escapeHtml(state.clientRegLabel || 'COMPANY REGISTRATION NO')}: ${escapeHtml(state.clientRegNo)}</strong>`;
 
   // Services table
-  const total = state.services.reduce((sum, s) => sum + (s.amount || 0), 0);
   const tbody = document.getElementById('servicesTableBody');
-  tbody.innerHTML = state.services.map(s => `
-    <div class="table-row">
-      <span class="td-services">${escapeHtml(s.desc)}</span>
-      <span class="td-hours">${escapeHtml(s.hours)}</span>
-      <span class="td-rate">${escapeHtml(s.rate)}</span>
-      <span class="td-amount">${formatEuro(s.amount)}</span>
-    </div>
-  `).join('');
+  let total = 0;
+  tbody.innerHTML = state.services.map(svc => {
+    const amt = svc.amount || 0;
+    total += amt;
+    return `
+      <div class="table-row">
+        <span class="td-services">${escapeHtml(svc.desc || '').toUpperCase()}</span>
+        <span class="td-hours">${svc.hours || ''}</span>
+        <span class="td-rate">${svc.rate || ''}</span>
+        <span class="td-amount">${formatEuro(amt)}</span>
+      </div>`;
+  }).join('');
 
-  // Total
   document.getElementById('totalDisplay').textContent = formatEuro(total);
-
-  // Balance
   document.getElementById('balanceDisplay').textContent = formatEuro(total);
 }
 
 // ===== Formatting =====
 function formatEuro(n) {
-  if (!n && n !== 0) return '';
   return n.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' €';
 }
 
 function escapeHtml(str) {
   if (!str) return '';
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function escapeAttr(str) {
@@ -380,14 +465,65 @@ function escapeAttr(str) {
   return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+// ===== Save Invoice (to Supabase) =====
+async function saveInvoice() {
+  recalcDates();
+  const total = state.services.reduce((sum, s) => sum + (s.amount || 0), 0);
+
+  const invoice = {
+    number: state.invoiceNumber,
+    month: state.invoiceMonth,
+    year: state.invoiceYear,
+    client_name: state.clientName,
+    company_id: state.selectedCompanyId || null,
+    amount: total,
+    status: 'pending',
+    invoice_date: state.invoiceDate,
+    due_date: state.dueDate,
+    services: state.services,
+  };
+
+  // Upsert by number+year
+  const existing = invoiceHistory.find(
+    inv => inv.number === state.invoiceNumber && inv.year === state.invoiceYear
+  );
+
+  if (existing) {
+    await supabase.from('invoices').update({
+      ...invoice,
+      status: existing.status, // preserve status
+      updated_at: new Date().toISOString()
+    }).eq('id', existing.id);
+  } else {
+    await supabase.from('invoices').insert(invoice);
+  }
+
+  await loadInvoiceHistory();
+  await saveState();
+
+  // Visual feedback
+  showToast('Invoice saved');
+}
+
+// ===== Toast =====
+function showToast(message) {
+  let toast = document.getElementById('toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'toast';
+    toast.className = 'toast';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = message;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2000);
+}
+
 // ===== PDF Export (open in new tab) =====
 function exportPDF() {
   const invoice = document.getElementById('invoice');
   const win = window.open('', '_blank');
   if (!win) { alert('Please allow popups for this page'); return; }
-
-  // Auto-save invoice to history
-  saveInvoiceToHistory();
 
   win.document.write(`<!DOCTYPE html>
 <html>
@@ -429,89 +565,44 @@ function toggleSidebar() {
 
 // ===== Tab Switching =====
 function switchTab(tab) {
-  // Update tab buttons
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.tab === tab);
   });
 
-  // Show/hide panels
-  const previewArea = document.querySelector('.preview-area');
+  const previewArea = document.getElementById('previewArea');
   const calendarArea = document.getElementById('calendarArea');
   const sidebarScroll = document.querySelector('.sidebar-scroll');
-  const sidebarActions = document.querySelector('.sidebar-actions');
 
   if (tab === 'calendar') {
     previewArea.style.display = 'none';
     calendarArea.style.display = 'flex';
     if (sidebarScroll) sidebarScroll.style.display = 'none';
-    if (sidebarActions) sidebarActions.style.display = 'none';
     renderCalendar();
   } else {
     previewArea.style.display = 'flex';
     calendarArea.style.display = 'none';
     if (sidebarScroll) sidebarScroll.style.display = '';
-    if (sidebarActions) sidebarActions.style.display = '';
   }
 }
 
-// ===== Invoice History Persistence =====
-function saveInvoiceHistory() {
-  localStorage.setItem('invoice_history', JSON.stringify(invoiceHistory));
-}
-
-function loadInvoiceHistory() {
-  const saved = localStorage.getItem('invoice_history');
-  if (saved) {
-    try {
-      invoiceHistory = JSON.parse(saved);
-    } catch (e) { invoiceHistory = []; }
-  }
-}
-
-function saveInvoiceToHistory() {
-  const total = state.services.reduce((sum, s) => sum + (s.amount || 0), 0);
-
-  // Check if invoice with same number + year already exists, update it
-  const existingIdx = invoiceHistory.findIndex(
-    inv => inv.number === state.invoiceNumber && inv.year === state.invoiceYear
-  );
-
-  const entry = {
-    id: existingIdx >= 0 ? invoiceHistory[existingIdx].id : crypto.randomUUID(),
-    number: state.invoiceNumber,
-    month: state.invoiceMonth,
-    year: state.invoiceYear,
-    clientName: state.clientName,
-    companyId: state.selectedCompanyId,
-    amount: total,
-    paid: existingIdx >= 0 ? invoiceHistory[existingIdx].paid : false,
-    createdAt: new Date().toISOString().slice(0, 10)
-  };
-
-  if (existingIdx >= 0) {
-    invoiceHistory[existingIdx] = entry;
-  } else {
-    invoiceHistory.push(entry);
-  }
-
-  saveInvoiceHistory();
-}
-
-function toggleInvoicePaid(id) {
+// ===== Calendar: Toggle Status =====
+async function cycleInvoiceStatus(id) {
   const inv = invoiceHistory.find(i => i.id === id);
-  if (inv) {
-    inv.paid = !inv.paid;
-    saveInvoiceHistory();
-    renderCalendar();
-  }
+  if (!inv) return;
+
+  const newStatus = STATUS_NEXT[inv.status] || 'processing';
+  await supabase.from('invoices').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', id);
+  inv.status = newStatus;
+  renderCalendar();
 }
 
-function deleteInvoice(id, event) {
+// ===== Calendar: Delete =====
+async function deleteInvoice(id, event) {
   event.stopPropagation();
   const inv = invoiceHistory.find(i => i.id === id);
   if (inv && confirm(`Delete Invoice #${inv.number} (${inv.clientName})?`)) {
+    await supabase.from('invoices').delete().eq('id', id);
     invoiceHistory = invoiceHistory.filter(i => i.id !== id);
-    saveInvoiceHistory();
     renderCalendar();
   }
 }
@@ -529,19 +620,16 @@ function renderCalendar() {
   const currentMonth = now.getMonth();
   const currentYear = now.getFullYear();
 
-  // Filter invoices for selected year
   const yearInvoices = invoiceHistory.filter(inv => inv.year === calendarYear);
   const totalAmount = yearInvoices.reduce((s, i) => s + i.amount, 0);
-  const paidAmount = yearInvoices.filter(i => i.paid).reduce((s, i) => s + i.amount, 0);
-  const pendingAmount = totalAmount - paidAmount;
+  const doneAmount = yearInvoices.filter(i => i.status === 'done').reduce((s, i) => s + i.amount, 0);
+  const pendingAmount = totalAmount - doneAmount;
 
-  // Update year title & summary
   document.getElementById('calendarYearTitle').textContent = calendarYear;
   document.getElementById('summaryTotal').textContent = formatEuro(totalAmount);
-  document.getElementById('summaryPaid').textContent = formatEuro(paidAmount);
+  document.getElementById('summaryPaid').textContent = formatEuro(doneAmount);
   document.getElementById('summaryPending').textContent = formatEuro(pendingAmount);
 
-  // Render 12 months
   grid.innerHTML = MONTHS.map((monthName, monthIdx) => {
     const monthInvoices = yearInvoices.filter(inv => inv.month === monthIdx);
     const monthTotal = monthInvoices.reduce((s, i) => s + i.amount, 0);
@@ -549,11 +637,11 @@ function renderCalendar() {
 
     const invoicesHtml = monthInvoices.length > 0
       ? monthInvoices.map(inv => `
-          <div class="cal-invoice ${inv.paid ? 'paid' : ''}" onclick="toggleInvoicePaid('${inv.id}')">
+          <div class="cal-invoice status-${inv.status}" onclick="cycleInvoiceStatus('${inv.id}')">
             <div class="cal-invoice-status"></div>
             <div class="cal-invoice-info">
               <div class="cal-invoice-client">${escapeHtml(inv.clientName)}</div>
-              <div class="cal-invoice-meta">#${inv.number} · ${inv.paid ? 'Paid' : 'Pending'}</div>
+              <div class="cal-invoice-meta">#${inv.number} · ${STATUS_LABELS[inv.status]}</div>
             </div>
             <span class="cal-invoice-amount">${formatEuro(inv.amount)}</span>
             <button class="cal-invoice-delete" onclick="deleteInvoice('${inv.id}', event)" title="Delete">
