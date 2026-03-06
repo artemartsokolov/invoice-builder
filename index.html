@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Invoice Constructor — Artem Sokolov</title>
+  <meta name="description" content="Personal invoice generator for Artem Sokolov">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+
+
+</head>
+
+<body>
+  <div class="app">
+    <!-- Sidebar: Form -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <h1><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+            <polyline points="10 9 9 9 8 9" />
+          </svg>Invoice Builder</h1>
+        <p class="subtitle">Artem Sokolov</p>
+        <div class="tab-nav">
+          <button class="tab-btn active" data-tab="builder" onclick="switchTab('builder')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+            Builder
+          </button>
+          <button class="tab-btn" data-tab="calendar" onclick="switchTab('calendar')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+            Calendar
+          </button>
+        </div>
+      </div>
+
+      <div class="sidebar-scroll">
+        <!-- Invoice Meta -->
+        <section class="form-section">
+          <h2 class="section-title">Invoice Details</h2>
+          <div class="form-grid form-grid-3">
+            <div class="form-group">
+              <label for="invoiceNumber">Invoice #</label>
+              <input type="number" id="invoiceNumber" value="5" min="1">
+            </div>
+            <div class="form-group">
+              <label for="invoiceYear">Year</label>
+              <input type="number" id="invoiceYear" value="2025" min="2020" max="2035">
+            </div>
+            <div class="form-group">
+              <label for="invoiceMonth">Month</label>
+              <select id="invoiceMonth">
+                <option value="0">January</option>
+                <option value="1">February</option>
+                <option value="2">March</option>
+                <option value="3">April</option>
+                <option value="4">May</option>
+                <option value="5">June</option>
+                <option value="6">July</option>
+                <option value="7">August</option>
+                <option value="8" selected>September</option>
+                <option value="9">October</option>
+                <option value="10">November</option>
+                <option value="11">December</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Invoice Date</label>
+              <input type="text" id="invoiceDatePreview" readonly class="readonly-input">
+            </div>
+            <div class="form-group">
+              <label>Due Date (end of next month)</label>
+              <input type="text" id="dueDatePreview" readonly class="readonly-input">
+            </div>
+          </div>
+        </section>
+
+        <!-- Bill To -->
+        <section class="form-section">
+          <h2 class="section-title">Bill To
+            <button class="btn-manage-companies" onclick="openCompanyManager()" title="Manage saved companies"><svg
+                width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path
+                  d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
+              </svg></button>
+          </h2>
+          <div class="form-group">
+            <label for="companySelect">Select Company</label>
+            <select id="companySelect">
+              <option value="">— Custom —</option>
+            </select>
+          </div>
+        </section>
+
+        <!-- Services -->
+        <section class="form-section">
+          <h2 class="section-title">Services</h2>
+          <div id="servicesContainer">
+            <div class="service-item" data-index="0">
+              <div class="form-group">
+                <label>Description</label>
+                <input type="text" class="svc-desc" value="Management of development of Technical platform">
+              </div>
+              <div class="form-grid form-grid-3">
+                <div class="form-group">
+                  <label>Hours</label>
+                  <input type="text" class="svc-hours" value="" placeholder="—">
+                </div>
+                <div class="form-group">
+                  <label>Rate</label>
+                  <input type="text" class="svc-rate" value="" placeholder="—">
+                </div>
+                <div class="form-group">
+                  <label>Amount (€)</label>
+                  <input type="number" class="svc-amount" value="4500" step="0.01">
+                </div>
+              </div>
+              <button class="btn-remove-service" onclick="removeService(this)" title="Remove service">✕</button>
+            </div>
+          </div>
+          <button class="btn-add" onclick="addService()">+ Add Service</button>
+        </section>
+
+        <!-- Actions -->
+        <div class="sidebar-actions">
+          <button class="btn-primary" onclick="exportPDF()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Export PDF
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main: Preview -->
+    <main class="preview-area">
+      <div class="preview-toolbar">
+        <button class="btn-toggle-sidebar" onclick="toggleSidebar()"><svg width="16" height="16" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg></button>
+        <span class="preview-label">Live Preview</span>
+      </div>
+      <div class="preview-scroll">
+        <div class="invoice-wrapper">
+          <div class="invoice" id="invoice">
+            <!-- From -->
+            <div class="invoice-header">
+              <div class="from-info">
+                <p class="from-name">Artem Sokolov</p>
+                <p class="from-nie">NIE: ESZ1798585J</p>
+                <p class="from-address">urb. Balcones de la Mairena, bloque 6, apartamento 1 A. urbanización<br>Elviria,
+                  Coto de los Dolores, C. Velazquez, 3, 29610 Ojén</p>
+                <p class="from-contact">Email: artemartsokolov@gmail.com</p>
+                <p class="from-contact">Mobile phone: +34 637 060 918</p>
+              </div>
+              <div class="invoice-title-block">
+                <h2 class="invoice-title">INVOICE</h2>
+                <p class="invoice-number-display" id="invoiceNumberDisplay">#5</p>
+              </div>
+            </div>
+
+            <!-- Meta + Bill To -->
+            <div class="invoice-meta-row">
+              <div class="bill-to">
+                <p class="label-sm">Bill To:</p>
+                <p class="client-name-display" id="clientNameDisplay">REVIERO TECHNOLOGIES LTD</p>
+                <p class="client-address-display" id="clientAddressDisplay">167-169 Great Portland Street<br>Fifth
+                  Floor<br>London<br>W1W 5PF</p>
+                <p class="client-reg-display" id="clientRegDisplay"><strong>COMPANY REGISTRATION NO: 14673847</strong>
+                </p>
+              </div>
+              <div class="invoice-dates">
+                <div class="date-row">
+                  <span class="date-label">Invoiced period:</span>
+                  <span class="date-value" id="periodDisplay">September</span>
+                </div>
+                <div class="date-row">
+                  <span class="date-label">Invoice date:</span>
+                  <span class="date-value" id="dateDisplay">30.09.2025</span>
+                </div>
+                <div class="date-row">
+                  <span class="date-label">Due Date:</span>
+                  <span class="date-value" id="dueDateDisplay">15.10.2025</span>
+                </div>
+                <div class="balance-due">
+                  <span class="balance-label">Balance Due:</span>
+                  <span class="balance-value" id="balanceDisplay">4,500 €</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Services Table -->
+            <div class="services-table">
+              <div class="table-header">
+                <span class="th-services">Services</span>
+                <span class="th-hours">Hours</span>
+                <span class="th-rate">Rate</span>
+                <span class="th-amount">Amount</span>
+              </div>
+              <div id="servicesTableBody">
+                <div class="table-row">
+                  <span class="td-services">Management of development of Technical platform</span>
+                  <span class="td-hours"></span>
+                  <span class="td-rate"></span>
+                  <span class="td-amount">4.500 €</span>
+                </div>
+              </div>
+              <div class="table-total">
+                <span class="total-label">Total</span>
+                <span class="total-value" id="totalDisplay">4.500 €</span>
+              </div>
+            </div>
+
+            <!-- Company Details -->
+            <div class="company-details">
+              <div class="details-header">Company details</div>
+              <div class="details-grid">
+                <div class="detail-row">
+                  <span class="detail-label">Beneficiary</span>
+                  <span class="detail-value">SOKOLOV ARTEM</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Beneficiary address</span>
+                  <span class="detail-value">urb. Balcones de la Mairena, bloque 6, apartamento 1 A. urbanización
+                    Elviria, Coto de los Dolores, C. Velazquez, 3, 29610 Ojén</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">IBAN</span>
+                  <span class="detail-value">ES18 2100 1755 2102 0084 4840</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Intermediary -->
+            <div class="intermediary-details">
+              <div class="details-header">Intermediary institution:</div>
+              <div class="details-grid">
+                <div class="detail-row">
+                  <span class="detail-label">Bank Name</span>
+                  <span class="detail-value">CAIXABANK</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Bank Address</span>
+                  <span class="detail-value">S.A., Avda Ricardo Soriano,27, Marbella, Málaga, Spain, 29601</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">SWIFT</span>
+                  <span class="detail-value">CAIXESBBXXX</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="invoice-footer-spacer"></div>
+
+          </div><!-- /invoice -->
+        </div>
+      </div>
+    </main>
+
+    <!-- Calendar View (hidden by default) -->
+    <main class="calendar-area" id="calendarArea" style="display:none">
+      <div class="preview-toolbar">
+        <button class="btn-toggle-sidebar" onclick="toggleSidebar()"><svg width="16" height="16" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg></button>
+        <span class="preview-label">Invoice Calendar</span>
+      </div>
+      <div class="calendar-scroll">
+        <!-- Year Header -->
+        <div class="calendar-year-header">
+          <button class="year-nav" onclick="changeCalendarYear(-1)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
+          <h2 class="calendar-year-title" id="calendarYearTitle">2026</h2>
+          <button class="year-nav" onclick="changeCalendarYear(1)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Year Summary -->
+        <div class="year-summary" id="yearSummary">
+          <div class="summary-card">
+            <span class="summary-label">Total Invoiced</span>
+            <span class="summary-value" id="summaryTotal">0 €</span>
+          </div>
+          <div class="summary-card summary-paid">
+            <span class="summary-label">Paid</span>
+            <span class="summary-value" id="summaryPaid">0 €</span>
+          </div>
+          <div class="summary-card summary-pending">
+            <span class="summary-label">Pending</span>
+            <span class="summary-value" id="summaryPending">0 €</span>
+          </div>
+        </div>
+
+        <!-- 12-Month Grid -->
+        <div class="calendar-grid" id="calendarGrid">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Company Manager Modal -->
+  <div class="modal-overlay" id="companyModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Saved Companies</h3>
+        <button class="modal-close" onclick="closeCompanyManager()"><svg width="16" height="16" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg></button>
+      </div>
+      <div class="modal-body">
+        <div id="companyList"></div>
+        <div class="add-company-form">
+          <h4>Add New Company</h4>
+          <div class="form-group">
+            <label>Company Name</label>
+            <input type="text" id="newCompanyName" placeholder="e.g. REVIERO TECHNOLOGIES LTD">
+          </div>
+          <div class="form-group">
+            <label>Address</label>
+            <textarea id="newCompanyAddress" rows="3"
+              placeholder="167-169 Great Portland Street&#10;Fifth Floor&#10;London&#10;W1W 5PF"></textarea>
+          </div>
+          <div class="form-group">
+            <label>Registration NO</label>
+            <input type="text" id="newCompanyRegNo" placeholder="e.g. 14673847">
+          </div>
+          <button class="btn-primary btn-sm" onclick="addCompany()">
+            <span class="btn-icon">+</span> Save Company
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+
+</html>
