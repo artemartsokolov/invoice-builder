@@ -1,5 +1,5 @@
 // ===== Supabase Client =====
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ===== Month Names =====
 const MONTHS = [
@@ -71,7 +71,7 @@ let calendarYear = new Date().getFullYear();
 
 // ===== Auth =====
 async function checkAuth() {
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await db.auth.getSession();
   if (session) {
     showApp();
   } else {
@@ -91,7 +91,7 @@ async function handleLogin(event) {
   btn.textContent = 'Signing in...';
   errorEl.textContent = '';
 
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { error } = await db.auth.signInWithPassword({ email, password });
 
   if (error) {
     errorEl.textContent = error.message;
@@ -103,7 +103,7 @@ async function handleLogin(event) {
 }
 
 async function handleLogout() {
-  await supabase.auth.signOut();
+  await db.auth.signOut();
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('appContainer').style.display = 'none';
 }
@@ -127,11 +127,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ===== State Persistence (Supabase) =====
 async function saveState() {
-  await supabase.from('app_state').upsert({ id: 1, state, updated_at: new Date().toISOString() });
+  await db.from('app_state').upsert({ id: 1, state, updated_at: new Date().toISOString() });
 }
 
 async function loadState() {
-  const { data } = await supabase.from('app_state').select('state').eq('id', 1).single();
+  const { data } = await db.from('app_state').select('state').eq('id', 1).single();
   if (data && data.state) {
     Object.assign(state, data.state);
   }
@@ -149,7 +149,7 @@ async function loadState() {
 async function saveCompanies() {
   // Upsert all companies
   for (const c of savedCompanies) {
-    await supabase.from('companies').upsert({
+    await db.from('companies').upsert({
       id: c.id,
       name: c.name,
       address: c.address,
@@ -160,7 +160,7 @@ async function saveCompanies() {
 }
 
 async function loadCompanies() {
-  const { data } = await supabase.from('companies').select('*').order('created_at');
+  const { data } = await db.from('companies').select('*').order('created_at');
   if (data && data.length > 0) {
     savedCompanies = data.map(c => ({
       id: c.id,
@@ -177,7 +177,7 @@ async function loadCompanies() {
 
 // ===== Invoice History (Supabase) =====
 async function loadInvoiceHistory() {
-  const { data } = await supabase.from('invoices').select('*').order('created_at', { ascending: false });
+  const { data } = await db.from('invoices').select('*').order('created_at', { ascending: false });
   if (data) {
     invoiceHistory = data.map(inv => ({
       id: inv.id,
@@ -352,7 +352,7 @@ async function addCompany() {
 async function removeCompany(index) {
   const removed = savedCompanies.splice(index, 1)[0];
   if (removed) {
-    await supabase.from('companies').delete().eq('id', removed.id);
+    await db.from('companies').delete().eq('id', removed.id);
   }
   rebuildCompanyDropdown();
   renderCompanyList();
@@ -489,13 +489,13 @@ async function saveInvoice() {
   );
 
   if (existing) {
-    await supabase.from('invoices').update({
+    await db.from('invoices').update({
       ...invoice,
       status: existing.status, // preserve status
       updated_at: new Date().toISOString()
     }).eq('id', existing.id);
   } else {
-    await supabase.from('invoices').insert(invoice);
+    await db.from('invoices').insert(invoice);
   }
 
   await loadInvoiceHistory();
@@ -591,7 +591,7 @@ async function cycleInvoiceStatus(id) {
   if (!inv) return;
 
   const newStatus = STATUS_NEXT[inv.status] || 'processing';
-  await supabase.from('invoices').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', id);
+  await db.from('invoices').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', id);
   inv.status = newStatus;
   renderCalendar();
 }
@@ -601,7 +601,7 @@ async function deleteInvoice(id, event) {
   event.stopPropagation();
   const inv = invoiceHistory.find(i => i.id === id);
   if (inv && confirm(`Delete Invoice #${inv.number} (${inv.clientName})?`)) {
-    await supabase.from('invoices').delete().eq('id', id);
+    await db.from('invoices').delete().eq('id', id);
     invoiceHistory = invoiceHistory.filter(i => i.id !== id);
     renderCalendar();
   }

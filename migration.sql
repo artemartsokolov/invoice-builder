@@ -77,3 +77,38 @@ CREATE POLICY "auth_all" ON app_state FOR ALL TO authenticated USING (true) WITH
 
 -- 7. Storage bucket for bank screenshots (run separately or via dashboard)
 -- INSERT INTO storage.buckets (id, name, public) VALUES ('receipts', 'receipts', false);
+
+-- 8. Create auth user (change password!)
+INSERT INTO auth.users (
+  instance_id,
+  id,
+  aud,
+  role,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  created_at,
+  updated_at,
+  confirmation_token,
+  email_change,
+  email_change_token_new,
+  recovery_token
+) VALUES (
+  '00000000-0000-0000-0000-000000000000',
+  gen_random_uuid(),
+  'authenticated',
+  'authenticated',
+  'artemartsokolov@gmail.com',
+  crypt('ChangeMe123!', gen_salt('bf')),
+  now(),
+  '{"provider":"email","providers":["email"]}',
+  '{}',
+  now(),
+  now(),
+  '',
+  '',
+  '',
+  ''
+);
